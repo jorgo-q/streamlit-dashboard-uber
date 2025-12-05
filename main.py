@@ -45,9 +45,7 @@ with tab_metadata:
     # Replace this with your real metadata text
     st.markdown(
         """
-**Harvard Business School Case:** 619-003  
-**Courseware:** 619-702  
-**Revision Date:** August 6, 2020  
+**Harvard Business School Case:** 619-003    
 
 This courseware was prepared solely as the basis for class discussion.  
 It supplements *“Innovation at Uber: The Launch of Express POOL”* and contains:
@@ -86,27 +84,27 @@ with tab_dict:
 with tab_viz:
     st.header("📊 Data Visualizations")
 
-    st.subheader("Data Preview")
-    st.write("Upload or load your data here and show a preview.")
+    # st.subheader("Data Preview")
+    # st.write("Upload or load your data here and show a preview.")
 
-    # Example: file uploader + table (pure Streamlit)
-    uploaded_file = st.file_uploader("Upload the HBR Uber Excel file", type=["xlsx", "xls", "csv"])
+    # # Example: file uploader + table (pure Streamlit)
+    # uploaded_file = st.file_uploader("Upload the HBR Uber Excel file", type=["xlsx", "xls", "csv"])
 
-    if uploaded_file is not None:
-        import pandas as pd  # only for data; layout is Streamlit-only
+    # if uploaded_file is not None:
+    #     import pandas as pd  # only for data; layout is Streamlit-only
 
-        df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith(("xlsx", "xls")) else pd.read_csv(uploaded_file)
-        st.dataframe(df.head())
+    #     df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith(("xlsx", "xls")) else pd.read_csv(uploaded_file)
+    #     st.dataframe(df.head())
 
-        st.subheader("Simple Time Series Example")
-        # Replace column names with your actual ones
-        time_col = "period_start"
-        value_col = "trips_pool"
+    #     st.subheader("Simple Time Series Example")
+    #     # Replace column names with your actual ones
+    #     time_col = "period_start"
+    #     value_col = "trips_pool"
 
-        if time_col in df.columns and value_col in df.columns:
-            ts_df = df[[time_col, value_col]].set_index(time_col)
-            st.line_chart(ts_df)
-        else:
-            st.info("Once your data has `period_start` and `trips_pool` columns, a time series will appear here.")
-    else:
-        st.info("Upload the dataset to see tables and charts.")
+    #     if time_col in df.columns and value_col in df.columns:
+    #         ts_df = df[[time_col, value_col]].set_index(time_col)
+    #         st.line_chart(ts_df)
+    #     else:
+    #         st.info("Once your data has `period_start` and `trips_pool` columns, a time series will appear here.")
+    # else:
+    #     st.info("Upload the dataset to see tables and charts.")
