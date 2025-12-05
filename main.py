@@ -2,7 +2,7 @@ import streamlit as st
 
 # ---------- Page config ----------
 st.set_page_config(
-    page_title="HBR Uber Case Study Analysis Dashboard",
+    page_title="HBR - Uber Case Study Analysis Dashboard",
     layout="wide"
 )
 
