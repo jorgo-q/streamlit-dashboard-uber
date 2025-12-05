@@ -12,7 +12,7 @@ with st.container():
 
     with col_left:
         # Replace with your logo path or URL
-        st.image("images/uber_logo.png", use_container_width=True)
+        st.image("files/Uber-logo.png", use_container_width=True)
 
     with col_center:
         st.markdown(
@@ -29,7 +29,7 @@ with st.container():
 
     with col_right:
         # Replace with your logo path or URL
-        st.image("images/rice_logo.png", use_container_width=True)
+        st.image("files/rice-logo.jpg", use_container_width=True)
 
 st.markdown("---")
 
