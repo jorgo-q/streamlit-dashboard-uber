@@ -1,4 +1,7 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
 # ---------- Page config ----------
 st.set_page_config(
@@ -6,12 +9,33 @@ st.set_page_config(
     layout="wide"
 )
 
+# ---------- DATA LOADING (NEW) ----------
+data_url = (
+    "https://docs.google.com/spreadsheets/"
+    "d/1fTpJACr1Ay6DEIgFxjFZF8LgEPiwwAFY/edit?usp=sharing&"
+    "ouid=103457517634340619188&rtpof=true&sd=true"
+)
+
+@st.cache_data
+def load_file(url: str):
+    # Turn the "edit" URL into a direct xlsx export URL
+    # (split on '/edit' to avoid issues with extra query params)
+    modified_url = url.split("/edit")[0] + "/export?format=xlsx"
+
+    # Load ALL sheets from the Excel file
+    all_sheets = pd.read_excel(modified_url, sheet_name=None)
+    return all_sheets
+
+# Load once (cached)
+data = load_file(data_url)
+switchbacks_df = data["Switchbacks"]  # main data sheet
+# If you want dictionary sheet later: dict_df = data["Data Dictionary"]
+
 # ---------- HEADER ----------
 with st.container():
     col_left, col_center, col_right = st.columns([1, 3, 1])
 
     with col_left:
-        # Replace with your logo path or URL
         st.image("files/Uber-logo.png", use_container_width=True)
 
     with col_center:
@@ -28,7 +52,6 @@ with st.container():
         )
 
     with col_right:
-        # Replace with your logo path or URL
         st.image("files/rice-logo.jpg", use_container_width=True)
 
 st.markdown("---")
@@ -42,7 +65,6 @@ tab_metadata, tab_dict, tab_viz = st.tabs(
 with tab_metadata:
     st.header("📄 Metadata")
 
-    # Replace this with your real metadata text
     st.markdown(
         """
 **Harvard Business School Case:** 619-003    
@@ -60,8 +82,7 @@ It supplements *“Innovation at Uber: The Launch of Express POOL”* and contai
 with tab_dict:
     st.header("📚 Data Dictionary")
 
-    # Example layout – replace with your own table or markdown
-    # If you already have a dataframe, just do: st.dataframe(df_dictionary)
+    # Option A: keep your static markdown table
     st.markdown(
         """
 | Variable              | Type    | Definition |
@@ -80,31 +101,52 @@ with tab_dict:
         unsafe_allow_html=False,
     )
 
+    # Option B (later): use the actual "Data Dictionary" sheet:
+    # st.dataframe(dict_df)
+
 # ===== TAB 3: DATA VISUALIZATIONS =====
 with tab_viz:
     st.header("📊 Data Visualizations")
 
-    # st.subheader("Data Preview")
-    # st.write("Upload or load your data here and show a preview.")
+    st.subheader("Data Preview – Switchbacks Sheet")
+    st.dataframe(switchbacks_df.head())
 
-    # # Example: file uploader + table (pure Streamlit)
-    # uploaded_file = st.file_uploader("Upload the HBR Uber Excel file", type=["xlsx", "xls", "csv"])
+    # ---- Simple controls + time series example ----
+    st.subheader("Time Series of Uber Metrics in Boston")
 
-    # if uploaded_file is not None:
-    #     import pandas as pd  # only for data; layout is Streamlit-only
+    # Choose metrics to plot
+    numeric_cols = [
+        "trips_pool",
+        "trips_express",
+        "rider_cancellations",
+        "total_driver_payout",
+        "total_matches",
+    ]
+    available_metrics = [c for c in numeric_cols if c in switchbacks_df.columns]
 
-    #     df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith(("xlsx", "xls")) else pd.read_csv(uploaded_file)
-    #     st.dataframe(df.head())
+    selected_metrics = st.multiselect(
+        "Select metrics to plot:",
+        options=available_metrics,
+        default=available_metrics[:3] if available_metrics else [],
+    )
 
-    #     st.subheader("Simple Time Series Example")
-    #     # Replace column names with your actual ones
-    #     time_col = "period_start"
-    #     value_col = "trips_pool"
+    if "period_start" in switchbacks_df.columns and selected_metrics:
+        # Melt to long format for plotly express
+        plot_df = switchbacks_df[["period_start"] + selected_metrics].melt(
+            id_vars="period_start",
+            value_vars=selected_metrics,
+            var_name="metric",
+            value_name="value",
+        )
 
-    #     if time_col in df.columns and value_col in df.columns:
-    #         ts_df = df[[time_col, value_col]].set_index(time_col)
-    #         st.line_chart(ts_df)
-    #     else:
-    #         st.info("Once your data has `period_start` and `trips_pool` columns, a time series will appear here.")
-    # else:
-    #     st.info("Upload the dataset to see tables and charts.")
+        fig = px.line(
+            plot_df,
+            x="period_start",
+            y="value",
+            color="metric",
+            labels={"period_start": "Time", "value": "Value", "metric": "Metric"},
+            title="Time Series of Uber Metrics in Boston",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Once `period_start` and numeric metric columns are present, a time series chart will appear here.")
