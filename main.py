@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------- DATA LOADING (NEW) ----------
+# ---------- DATA LOADING ----------
 data_url = (
     "https://docs.google.com/spreadsheets/"
     "d/1fTpJACr1Ay6DEIgFxjFZF8LgEPiwwAFY/edit?usp=sharing&"
@@ -19,17 +19,16 @@ data_url = (
 @st.cache_data
 def load_file(url: str):
     # Turn the "edit" URL into a direct xlsx export URL
-    # (split on '/edit' to avoid issues with extra query params)
     modified_url = url.split("/edit")[0] + "/export?format=xlsx"
-
-    # Load ALL sheets from the Excel file
     all_sheets = pd.read_excel(modified_url, sheet_name=None)
     return all_sheets
 
-# Load once (cached)
 data = load_file(data_url)
-switchbacks_df = data["Switchbacks"]  # main data sheet
-# If you want dictionary sheet later: dict_df = data["Data Dictionary"]
+
+# Convenience references
+switchbacks_df = data["Switchbacks"].copy()
+dict_sheet = data["Data Dictionary"]
+copyright_sheet = data["Copyright"]
 
 # ---------- HEADER ----------
 with st.container():
@@ -61,92 +60,107 @@ tab_metadata, tab_dict, tab_viz = st.tabs(
     ["Metadata", "Data Dictionary", "Data Visualizations"]
 )
 
-# ===== TAB 1: METADATA =====
+# ===== TAB 1: METADATA (show_metadata) =====
 with tab_metadata:
     st.header("📄 Metadata")
 
-    st.markdown(
-        """
-**Harvard Business School Case:** 619-003    
-
-This courseware was prepared solely as the basis for class discussion.  
-It supplements *“Innovation at Uber: The Launch of Express POOL”* and contains:
-
-- A **Switchbacks** sheet with simulated experiment data from Boston  
-- A **Data Dictionary** sheet describing each variable  
-- Additional information about rider wait times, driver earnings, and match performance
-        """
+    # Replicates your show_metadata(data) logic, but in Streamlit
+    # lines = [sentence[0] for sentence in data['Copyright'].dropna().values.tolist()]
+    # Safer version:
+    first_col_name = copyright_sheet.columns[0]
+    lines = (
+        copyright_sheet[first_col_name]
+        .dropna()
+        .astype(str)
+        .tolist()
     )
+    text = "\n\n".join(lines)
 
-# ===== TAB 2: DATA DICTIONARY =====
+    st.markdown(text)
+
+# ===== TAB 2: DATA DICTIONARY (show_dictionary) =====
 with tab_dict:
     st.header("📚 Data Dictionary")
 
-    # Option A: keep your static markdown table
-    st.markdown(
-        """
-| Variable              | Type    | Definition |
-|----------------------|---------|-----------|
-| `city_id`            | String  | Location where the experiment took place (Boston). |
-| `period_start`       | Date    | Start datetime of the 160-minute time period. |
-| `wait_time`          | String  | `"2 mins"` (control) or `"5 mins"` (treatment). |
-| `treat`              | Boolean | `TRUE` for treatment periods with 5-minute waits. |
-| `commute`            | Boolean | `TRUE` during commute hours; `FALSE` otherwise. |
-| `trips_pool`         | Numeric | Number of POOL trips completed in the period. |
-| `trips_express`      | Numeric | Number of Express POOL trips completed. |
-| `rider_cancellations`| Numeric | Trips cancelled by riders in the period. |
-| `total_driver_payout`| Numeric | Total payout to drivers in the period. |
-| `total_matches`      | Numeric | Completed trips matched with at least one other rider. |
-        """,
-        unsafe_allow_html=False,
-    )
+    # Replicates your show_dictionary(data) logic
+    headers = dict_sheet.iloc[1, :].values.tolist()
+    df_dict = dict_sheet.iloc[2:, :].copy()
+    df_dict.columns = headers
+    df_dict.reset_index(drop=True, inplace=True)
 
-    # Option B (later): use the actual "Data Dictionary" sheet:
-    # st.dataframe(dict_df)
+    # Optionally drop unnamed columns that come from blank Excel columns
+    df_dict = df_dict.loc[:, ~df_dict.columns.str.contains("^Unnamed")]
 
-# ===== TAB 3: DATA VISUALIZATIONS =====
+    st.dataframe(df_dict, use_container_width=True)
+
+# ===== TAB 3: DATA VISUALIZATIONS (load_data, show_time_series, pie_chart) =====
 with tab_viz:
     st.header("📊 Data Visualizations")
 
-    st.subheader("Data Preview – Switchbacks Sheet")
-    st.dataframe(switchbacks_df.head())
+    # --- Load data (load_data) ---
+    st.subheader("Data – Switchbacks Sheet")
 
-    # ---- Simple controls + time series example ----
-    st.subheader("Time Series of Uber Metrics in Boston")
-
-    # Choose metrics to plot
-    numeric_cols = [
-        "trips_pool",
-        "trips_express",
-        "rider_cancellations",
-        "total_driver_payout",
-        "total_matches",
-    ]
-    available_metrics = [c for c in numeric_cols if c in switchbacks_df.columns]
-
-    selected_metrics = st.multiselect(
-        "Select metrics to plot:",
-        options=available_metrics,
-        default=available_metrics[:3] if available_metrics else [],
+    # Slider to control range of rows displayed
+    max_index = len(switchbacks_df) - 1
+    start, end = st.slider(
+        "Select row range to display",
+        min_value=0,
+        max_value=max_index,
+        value=(0, min(50, max_index)),
     )
+    st.dataframe(switchbacks_df.iloc[start : end + 1], use_container_width=True)
 
-    if "period_start" in switchbacks_df.columns and selected_metrics:
-        # Melt to long format for plotly express
-        plot_df = switchbacks_df[["period_start"] + selected_metrics].melt(
-            id_vars="period_start",
-            value_vars=selected_metrics,
-            var_name="metric",
-            value_name="value",
-        )
+    st.markdown("---")
 
-        fig = px.line(
-            plot_df,
-            x="period_start",
-            y="value",
-            color="metric",
-            labels={"period_start": "Time", "value": "Value", "metric": "Metric"},
+    # Make sure period_start is datetime for charts
+    switchbacks_df["period_start"] = pd.to_datetime(switchbacks_df["period_start"])
+
+    col_ts, col_pie = st.columns([2, 1])
+
+    # --- Time series (show_time_series) ---
+    with col_ts:
+        st.subheader("📈 Time Series of Uber Trips in Boston")
+
+        fig_ts = go.Figure()
+        for y_column in ["trips_pool", "trips_express", "rider_cancellations"]:
+            if y_column in switchbacks_df.columns:
+                fig_ts.add_trace(
+                    go.Scatter(
+                        x=switchbacks_df["period_start"],
+                        y=switchbacks_df[y_column],
+                        mode="lines+markers",
+                        name=y_column,
+                    )
+                )
+
+        fig_ts.update_layout(
             title="Time Series of Uber Metrics in Boston",
+            xaxis_title="Time",
+            yaxis_title="Value",
+            height=500,
         )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Once `period_start` and numeric metric columns are present, a time series chart will appear here.")
+
+        st.plotly_chart(fig_ts, use_container_width=True)
+
+    # --- Pie chart (pie_chart) ---
+    with col_pie:
+        st.subheader("💰 Earnings Pie Chart")
+
+        period = st.selectbox("Select period:", options=["week", "month"], index=0)
+
+        df_pie = switchbacks_df.copy()
+        if period == "week":
+            df_pie["label"] = df_pie["period_start"].dt.day_name()
+        else:
+            df_pie["label"] = df_pie["period_start"].dt.month_name()
+
+        if "total_driver_payout" in df_pie.columns:
+            fig_pie = px.pie(
+                df_pie,
+                names="label",
+                values="total_driver_payout",
+                title=f"Total Driver Payout by {period.title()}",
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("Column `total_driver_payout` not found in data.")
