@@ -32,6 +32,8 @@ It enables users to explore trends, filter the dataset, and visualize patterns a
 ├── data/
 │   └── uber.csv               # Dataset (or download link)
 ├── requirements.txt           # Dependencies
+├── files                      # Images, dataset folder
+├── modules                    # Modules folder
 └── README.md                  # Documentation
 ```
 
